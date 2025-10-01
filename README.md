@@ -33,7 +33,7 @@ Key Python libraries used:
 
 1.  Clone the repository:
     ```bash
-    git clone [https://github.com/seu-usuario/UnloadMesh.git](https://github.com/seu-usuario/UnloadMesh.git)
+    git clone [https://github.com/DaniDanyDani/UnloadMesh.git](https://github.com/DaniDanyDani/UnloadMesh.git)
     cd UnloadMesh
     ```
 2.  Ensure that all required modules, including your custom solvers (`solver_lv`, `guccionematerial`), are available in your Python path.

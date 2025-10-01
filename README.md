@@ -42,30 +42,3 @@ Key Python libraries used:
 
 The main workflow involves loading your *in vivo* mesh and pressure data, and then calling the iterative solver.
 
-```python
-import dolfin as df
-import numpy as np
-import os
-
-# Custom modules for the simulation
-from solver_lv import solve_inflation
-from guccionematerial import GuccioneMaterial
-import ldrb
-
-# 1. Load your in-vivo (loaded) mesh
-mesh_invivo = df.Mesh("path/to/your/invivo_mesh.xml")
-
-# 2. Define material properties and in-vivo pressure
-# (Example using Guccione material)
-material = GuccioneMaterial(...)
-invivo_pressure = 80.0  # Example pressure in mmHg
-
-# 3. Set up the fixed-point solver parameters
-# ... (solver setup) ...
-
-# 4. Run the algorithm to find the unloaded mesh
-mesh_unloaded = find_unloaded_configuration(mesh_invivo, invivo_pressure, material)
-
-# 5. Save the resulting zero-pressure mesh
-file = df.File("unloaded_mesh.pvd")
-file << mesh_unloaded

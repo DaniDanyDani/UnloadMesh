@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A FEniCS-based implementation of the fixed-point iteration method to determine the unloaded (zero-stress) configuration of pre-strained biological structures, such as blood vessels and cardiac tissue.
+A FEniCS-based toolkit for computing the unloaded (zero-stress) configuration of a pre-strained geometry. This project implements an iterative fixed-point algorithm to solve the inverse mechanics problem, essential for accurate biomechanical and soft tissue simulations.
 
 ## Motivation
 

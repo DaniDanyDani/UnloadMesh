@@ -1,6 +1,64 @@
-UnloadMeshA FEniCS-based implementation of the fixed-point iteration method to determine the unloaded (zero-stress) configuration of pre-strained biological structures, such as blood vessels and cardiac tissue.MotivationIn biomechanics, patient-specific geometries are often obtained from medical imaging techniques like CT or MRI. A critical challenge is that these images capture the organ in its in vivo state, meaning it is already under physiological loads (e.g., blood pressure). Performing finite element simulations directly on this loaded geometry leads to inaccurate stress distributions and incorrect deformation analyses.To achieve physically accurate simulations, it is necessary to solve the inverse problem: finding the "zero-pressure" or "unloaded" configuration of the geometry. This repository provides a practical implementation of the backward displacement method proposed by Bols et al. (2013) to solve this problem iteratively.MethodologyThe core of this project is a fixed-point iteration algorithm to find the zero-pressure geometry () from a known in vivo (loaded) geometry () and a known internal pressure ().The algorithm, as described by Bols et al., can be summarized as follows:Initialization: The first guess for the unloaded geometry () is the loaded geometry itself: .Iteration Loop: For each iteration i:a. Forward Simulation: A standard finite element analysis is performed. The current guess for the unloaded geometry, Ω(Xi,0), is subjected to the known in vivo pressure load, pm​. This computes a new deformed configuration, Ω(xi,σi).b. Calculate Displacements: The displacement field Ui is calculated as the difference between the resulting deformed geometry and the current guess: Ui=xi−Xi.c. Update Guess: A new, improved guess for the unloaded geometry (Xi+1) is calculated by subtracting the displacement field (Ui) from the original in vivo geometry (xm​): Xi+1=xm​−Ui.Convergence: The loop continues until the distance between the simulated geometry () and the target in vivo geometry () is smaller than a defined tolerance .Upon convergence,  is the desired zero-pressure geometry (), and  is the corresponding in vivo stress tensor field ().FeaturesImplementation of the backward displacement fixed-point algorithm.Built on the robust FEniCS Project (dolfin) for finite element modeling.Integration with Guccione's anisotropic material model for cardiac tissue simulations.Support for rule-based fiber orientation generation via the LDRB library.Getting StartedPrerequisitesThis project requires a working installation of the legacy FEniCS Project (dolfin). Please follow the official installation instructions.Key Python libraries used:dolfinnumpyldrbguccionematerial (based on the Simula-SSCP lectures)InstallationClone the repository:git clone [https://github.com/seu-usuario/UnloadMesh.git](https://github.com/seu-usuario/UnloadMesh.git)
-cd UnloadMesh
-Ensure that all required modules, including your custom solvers (solver_lv, guccionematerial), are available in your Python path.UsageThe main workflow involves loading your in vivo mesh and pressure data, and then calling the iterative solver.import dolfin as df
+# UnloadMesh
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A FEniCS-based implementation of the fixed-point iteration method to determine the unloaded (zero-stress) configuration of pre-strained biological structures, such as blood vessels and cardiac tissue.
+
+## Motivation
+
+In biomechanics, patient-specific geometries are often obtained from medical imaging techniques like CT or MRI. A critical challenge is that these images capture the organ in its *in vivo* state, meaning it is already under physiological loads (e.g., blood pressure). Performing finite element simulations directly on this loaded geometry leads to inaccurate stress distributions and incorrect deformation analyses.
+
+To achieve physically accurate simulations, it is necessary to solve the inverse problem: finding the "zero-pressure" or "unloaded" configuration of the geometry. This repository provides a practical implementation of the **backward displacement method** proposed by Bols et al. (2013) to solve this problem iteratively.
+
+## Methodology
+
+The core of this project is a fixed-point iteration algorithm to find the zero-pressure geometry ($X^*$) from a known *in vivo* (loaded) geometry ($x_m$) and a known internal pressure ($p_m$).
+
+The algorithm, as described by Bols et al., can be summarized as follows:
+
+1.  **Initialization**: The first guess for the unloaded geometry ($X^1$) is the loaded geometry itself: $X^1 = x_m$.
+2.  **Iteration Loop**: For each iteration `i`:
+    a. **Forward Simulation**: A standard finite element analysis is performed. The current guess for the unloaded geometry, $\Omega(X^i, 0)$, is subjected to the known *in vivo* pressure load, $p_m$. This computes a new deformed configuration, $\Omega(x^i, \sigma^i)$.
+    b. **Calculate Displacements**: The displacement field $U^i$ is calculated as the difference between the resulting deformed geometry and the current guess: $U^i = x^i - X^i$.
+    c. **Update Guess**: A new, improved guess for the unloaded geometry ($X^{i+1}$) is calculated by subtracting the displacement field ($U^i$) from the original *in vivo* geometry ($x_m$): $X^{i+1} = x_m - U^i$.
+3.  **Convergence**: The loop continues until the distance between the simulated geometry ($x^i$) and the target *in vivo* geometry ($x_m$) is smaller than a defined tolerance $\epsilon$.
+
+Upon convergence, $X^i$ is the desired zero-pressure geometry ($X^*$), and $\sigma^i$ is the corresponding *in vivo* stress tensor field ($\sigma^*$).
+
+## Features
+
+* Implementation of the backward displacement fixed-point algorithm.
+* Built on the robust **FEniCS Project** (`dolfin`) for finite element modeling.
+* Integration with **Guccione's anisotropic material model** for cardiac tissue simulations.
+* Support for rule-based fiber orientation generation via the **LDRB** library.
+
+## Getting Started
+
+### Prerequisites
+
+This project requires a working installation of the legacy FEniCS Project (`dolfin`). Please follow the official installation instructions.
+
+Key Python libraries used:
+* `dolfin`
+* `numpy`
+* `ldrb`
+* `guccionematerial` (based on the [Simula-SSCP lectures](https://github.com/Simula-SSCP/SSCP_lectures/tree/main))
+
+### Installation
+
+1.  Clone the repository:
+    ```bash
+    git clone [https://github.com/seu-usuario/UnloadMesh.git](https://github.com/seu-usuario/UnloadMesh.git)
+    cd UnloadMesh
+    ```
+2.  Ensure that all required modules, including your custom solvers (`solver_lv`, `guccionematerial`), are available in your Python path.
+
+## Usage
+
+The main workflow involves loading your *in vivo* mesh and pressure data, and then calling the iterative solver.
+
+```python
+import dolfin as df
 import numpy as np
 import os
 
@@ -26,12 +84,3 @@ mesh_unloaded = find_unloaded_configuration(mesh_invivo, invivo_pressure, materi
 # 5. Save the resulting zero-pressure mesh
 file = df.File("unloaded_mesh.pvd")
 file << mesh_unloaded
-CitationThis work is based on the methods described in the following paper. If you use this code in your research, please cite the original publication:J. Bols, J. Degroote, B. Trachet, B. Verhegghe, P. Segers, J. Vierendeels, A computational method to assess the in vivo stresses and unloaded configuration of patient-specific blood vessels, Journal of Computational and Applied Mathematics, Volume 246, 2013, Pages 10-17, ISSN 0377-0427, doi:10.1016/j.cam.2012.10.034.@article{BOLS201310,
-  title = {A computational method to assess the in vivo stresses and unloaded configuration of patient-specific blood vessels},
-  journal = {Journal of Computational and Applied Mathematics},
-  volume = {246},
-  pages = {10-17},
-  year = {2013},
-  author = {J. Bols and J. Degroote and B. Trachet and B. Verhegghe and P. Segers and J. Vierendeels}
-}
-Please also consider citing this repository if it was useful for your work.LicenseThis project is licensed under the MIT License - see the LICENSE file for details.

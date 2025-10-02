@@ -23,20 +23,21 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
         vol_form = (-1.0/3.0) * df.dot(X, N)
 
     ds = df.Measure('ds', domain=mesh, subdomain_data=mf)
+
+    # Usa o marcador 'lv' definido no dicionário ldrb_markers
     return df.assemble(vol_form*ds(numbering["lv"]))
 
 # --- 1. PARÂMETROS GERAIS ---
-TOLERANCIA = 1e-4      
-MAX_ITERACOES = 50     
-PRESSAO_MEDIDA = 10.0  
-SOLVER_PRESSURE_STEPS = 500
-
-FATOR_RELAXACAO = 0.5
+# Parâmetros do Algoritmo de Ponto Fixo
+TOLERANCIA = 1e-3      # Critério de parada (epsilon do artigo)
+MAX_ITERACOES = 100     # Número máximo de iterações para o ponto fixo.
+PRESSAO_MEDIDA = 1.0  # Pressão alvo 'pm' do artigo.
+SOLVER_PRESSURE_STEPS = 100 # Em quantos passos o solver interno deve dividir a carga.
 
 # Caminhos dos arquivos
 MESH_PATH = "./data/example/Patient_lv.xml"
 FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload/teste_4"
+OUTPUT_DIR = "results_unload/teste_3"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 
@@ -49,57 +50,80 @@ print("Inicializando o processo para encontrar a geometria sem carga...")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 try:
+    # Carrega a geometria medida 'xm', que está sob pressão.
     mesh_atual = df.Mesh(MESH_PATH)
     ffun = df.MeshFunction("size_t", mesh_atual, FFUN_PATH)
+    # Salva as coordenadas originais 'xm' para referência.
     coords_medida = np.copy(mesh_atual.coordinates()) 
 except RuntimeError:
     print(f"\nERRO: Malha '{MESH_PATH}' ou fronteiras '{FFUN_PATH}' não encontradas.")
     exit()
 
+# Passo 2 do Algoritmo 1: O chute inicial para a geometria descarregada ('X_1')
+# é a própria geometria medida ('xm').
+# A variável 'mesh_atual' representa 'X_i' em cada iteração.
 disp_file = df.File(ITERATIVE_DISP_FILE)
-# Listas para armazenar os resultados de cada iteração para plotagem
-volumes_por_iteracao = []
-residuos_por_iteracao = []
 
+# Lista para armazenar o volume calculado a cada iteração
+volumes_por_iteracao = []
+
+# disp_file = File("results_unload/teste_50intPF/u.pvd")
 
 # --- 3. LOOP ITERATIVO DE PONTO FIXO ---
+# Passo 3 do Algoritmo 1: Inicia o loop 'while'.
 for i in range(MAX_ITERACOES):
     print(f"\n--- Iteração {i+1}/{MAX_ITERACOES} ---")
 
     try:
+        # Salva as coordenadas da estimativa atual da malha descarregada ('X_i')
         coords_descarregada_atual = np.copy(mesh_atual.coordinates())
 
-        # PASSO 1: SIMULAÇÃO DIRETA
+        # =========================================================================
+        # PASSO 1: SIMULAÇÃO DIRETA (Linha 5 do Algoritmo 1)
+        # Calcula a configuração de equilíbrio Omega(x_i, sigma_i) a partir da
+        # estimativa atual da geometria descarregada Omega(X_i, 0) sob a pressão 'pm'.
+        # O resultado principal é o campo de deslocamento 'U_i = x_i - X_i'.
+        # =========================================================================
         print("Executando simulação direta (chamando o solver)...")
         u_calculado = solve_inflation_lv(
-            mesh_atual, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
+            mesh_atual, 
+            ffun,       
+            ldrb_markers,
+            PRESSAO_MEDIDA,
+            SOLVER_PRESSURE_STEPS 
         )
         u_calculado.rename("u", f"displacement_iter_{i+1}")
         disp_file << u_calculado
         u_array = u_calculado.vector().get_local().reshape((-1, 3))
 
-        # PASSO 2: CÁLCULO DO RESÍDUO
+        # =========================================================================
+        # PASSO 2: CÁLCULO DO RESÍDUO (Linha 3 do Algoritmo 1)
+        # Verifica a condição de parada. O resíduo 'r' é a distância entre
+        # a geometria alvo 'xm' e a geometria deformada calculada na simulação 'x_i'.
+        # O loop para quando max(r_i) < epsilon.
+        # =========================================================================
         coords_deformada_calculada = coords_descarregada_atual + u_array
         residuo_vetorial = coords_medida - coords_deformada_calculada
         max_residuo = np.max(np.linalg.norm(residuo_vetorial, axis=1))
         
-        # Armazena os resultados para plotagem
-        residuos_por_iteracao.append(max_residuo)
+        print(f"Resíduo máximo nesta iteração: {max_residuo:.6f}")
+
+        # Calcula e armazena o volume da cavidade deformada
         volume_calculado = compute_cavity_volume(mesh_atual, ffun, ldrb_markers, u_calculado)
         volumes_por_iteracao.append(volume_calculado)
-        
-        print(f"Resíduo máximo nesta iteração: {max_residuo:.6f}")
         print(f"Volume da cavidade calculado: {volume_calculado:.2f}")
 
         if max_residuo < TOLERANCIA:
             print("\nConvergência atingida com sucesso!")
             break
 
-        # PASSO 3: ATUALIZAÇÃO DA GEOMETRIA COM SUB-RELAXAÇÃO
-        print("Atualizando a estimativa da geometria descarregada com sub-relaxação...")
-        target_coords_descarregada = coords_medida - u_array
-        correcao = target_coords_descarregada - coords_descarregada_atual
-        coords_descarregada_proxima = coords_descarregada_atual + FATOR_RELAXACAO * correcao
+        # =========================================================================
+        # PASSO 3: ATUALIZAÇÃO DA GEOMETRIA (Linha 7 do Algoritmo 1)
+        # Calcula a próxima estimativa da geometria descarregada usando a fórmula
+        # de ponto fixo: X_{i+1} = x_m - U_i.
+        # =========================================================================
+        print("Atualizando a estimativa da geometria descarregada para a próxima iteração...")
+        coords_descarregada_proxima = coords_medida - u_array
         mesh_atual.coordinates()[:] = coords_descarregada_proxima
 
     except RuntimeError as e:
@@ -108,45 +132,27 @@ for i in range(MAX_ITERACOES):
         mesh_atual.coordinates()[:] = coords_medida
         break
 
-else: 
+else: # Executado se o loop 'for' terminar sem um 'break'.
     print(f"\nAVISO: Número máximo de {MAX_ITERACOES} iterações atingido sem convergência total.")
 
+
 # --- 4. SALVAR RESULTADO FINAL ---
+# Linha 9 do Algoritmo 1: A geometria descarregada final 'X*' é a última estimativa 'X_i'.
 print(f"\nSalvando a geometria descarregada final em '{UNLOADED_MESH_FILE}'...")
 with df.XDMFFile(UNLOADED_MESH_FILE) as outfile:
     outfile.write(mesh_atual)
+
 print("Processo concluído.")
 
 # --- 5. VISUALIZAÇÃO DOS RESULTADOS ---
-if volumes_por_iteracao and residuos_por_iteracao:
-    num_iteracoes = range(1, len(volumes_por_iteracao) + 1)
-
-    fig, ax1 = plt.subplots(figsize=(10, 6))
-
-    # Plot do Resíduo (eixo Y esquerdo)
-    color = 'tab:blue'
-    ax1.set_xlabel('Iteração do Ponto Fixo')
-    ax1.set_ylabel('Resíduo Máximo (Erro)', color=color)
-    ax1.plot(num_iteracoes, residuos_por_iteracao, marker='o', linestyle='--', color=color, label='Resíduo Máximo')
-    ax1.tick_params(axis='y', labelcolor=color)
-    ax1.set_yscale('log') # Escala logarítmica é ideal para ver a convergência do erro
-    
-    # Cria um segundo eixo Y que compartilha o mesmo eixo X
-    ax2 = ax1.twinx()  
-    color = 'tab:red'
-    ax2.set_ylabel('Volume da Cavidade', color=color)
-    ax2.plot(num_iteracoes, volumes_por_iteracao, marker='s', linestyle=':', color=color, label='Volume Calculado')
-    ax2.tick_params(axis='y', labelcolor=color)
-
-    fig.tight_layout()
-    plt.title('Convergência do Resíduo e do Volume por Iteração')
+# Plota o gráfico da convergência do volume ao longo das iterações.
+if volumes_por_iteracao:
+    plt.figure()
+    plt.plot(range(1, len(volumes_por_iteracao) + 1), volumes_por_iteracao, marker='o', linestyle='--')
+    plt.xlabel("Iteração do Ponto Fixo")
+    plt.ylabel("Volume da Cavidade Calculado")
+    plt.title("Convergência do Volume da Cavidade por Iteração")
     plt.grid(True)
-    plt.xticks(num_iteracoes)
-    
-    # Adiciona legendas de ambos os plots
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax2.legend(lines + lines2, labels + labels2, loc='best')
-
+    plt.xticks(range(1, len(volumes_por_iteracao) + 1)) # Garante ticks inteiros no eixo x
     plt.show()
 

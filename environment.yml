@@ -1,0 +1,10 @@
+name: unloadmesh
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.10
+  - fenics-dolfin
+  - numpy
+  - meshio

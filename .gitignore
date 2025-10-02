@@ -3,6 +3,11 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Ignorar tudo dentro da pasta /data...
+data/*
+# ... exceto a subpasta /example
+!data/example
+
 # C extensions
 *.so
 

@@ -29,15 +29,15 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
 
 # --- 1. PARÂMETROS GERAIS ---
 # Parâmetros do Algoritmo de Ponto Fixo
-TOLERANCIA = 1e-4      # Critério de parada (epsilon do artigo)
-MAX_ITERACOES = 500     # Número máximo de iterações para o ponto fixo.
-PRESSAO_MEDIDA = 10.0  # Pressão alvo 'pm' do artigo.
-SOLVER_PRESSURE_STEPS = 1000 # Em quantos passos o solver interno deve dividir a carga.
+TOLERANCIA = 1e-3      # Critério de parada (epsilon do artigo)
+MAX_ITERACOES = 100     # Número máximo de iterações para o ponto fixo.
+PRESSAO_MEDIDA = 1.0  # Pressão alvo 'pm' do artigo.
+SOLVER_PRESSURE_STEPS = 100 # Em quantos passos o solver interno deve dividir a carga.
 
 # Caminhos dos arquivos
 MESH_PATH = "./data/example/Patient_lv.xml"
 FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload"
+OUTPUT_DIR = "results_unload/teste_3"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 
@@ -67,6 +67,7 @@ disp_file = df.File(ITERATIVE_DISP_FILE)
 # Lista para armazenar o volume calculado a cada iteração
 volumes_por_iteracao = []
 
+# disp_file = File("results_unload/teste_50intPF/u.pvd")
 
 # --- 3. LOOP ITERATIVO DE PONTO FIXO ---
 # Passo 3 do Algoritmo 1: Inicia o loop 'while'.

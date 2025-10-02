@@ -6,6 +6,19 @@ __pycache__/
 # C extensions
 *.so
 
+# Arquivos de Cache do Python
+__pycache__/
+*.pyc
+
+# Ignorar todo o conteúdo da pasta de resultados
+# O * significa "tudo dentro", e o ! nega a regra para o .gitkeep
+results_unload/*
+!results_unload/.gitkeep
+
+# Pastas de IDEs (opcional, mas recomendado)
+.vscode/
+.idea/
+
 # Distribution / packaging
 .Python
 build/

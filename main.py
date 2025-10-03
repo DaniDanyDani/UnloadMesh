@@ -27,9 +27,9 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
 
 # --- 1. PARÂMETROS GERAIS ---
 TOLERANCIA = 1e-4      
-MAX_ITERACOES = 50     
+MAX_ITERACOES = 1000     
 PRESSAO_MEDIDA = 10.0  
-SOLVER_PRESSURE_STEPS = 500
+SOLVER_PRESSURE_STEPS = 1000
 
 FATOR_RELAXACAO = 0.5
 

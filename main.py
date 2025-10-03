@@ -26,17 +26,17 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
     return df.assemble(vol_form*ds(numbering["lv"]))
 
 # --- 1. PARÂMETROS GERAIS ---
-TOLERANCIA = 1e-4      
-MAX_ITERACOES = 50     
-PRESSAO_MEDIDA = 10.0  
-SOLVER_PRESSURE_STEPS = 500
+TOLERANCIA = 1e-3      
+MAX_ITERACOES = 1000     
+PRESSAO_MEDIDA = 1.0  
+SOLVER_PRESSURE_STEPS = 1000
 
-FATOR_RELAXACAO = 0.5
+FATOR_RELAXACAO = 0.1
 
 # Caminhos dos arquivos
-MESH_PATH = "./data/example/Patient_lv.xml"
-FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload/teste_4"
+MESH_PATH = "/home/daniel/UnloadMesh/data/example/Patient_lv.xml"
+FFUN_PATH = "/home/daniel/UnloadMesh/data/example/Patient_lv_facet_region.xml"
+OUTPUT_DIR = "results_unload/teste_2"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 

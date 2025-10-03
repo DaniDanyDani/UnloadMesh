@@ -8,3 +8,5 @@ dependencies:
   - fenics-dolfin
   - numpy
   - meshio
+  - matplotlib
+  - ldrb

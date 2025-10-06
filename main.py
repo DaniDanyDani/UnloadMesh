@@ -25,26 +25,25 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
     ds = df.Measure('ds', domain=mesh, subdomain_data=mf)
     return df.assemble(vol_form*ds(numbering["lv"]))
 
-# --- 1. PARÂMETROS GERAIS ---
 TOLERANCIA = 1e-5      
 MAX_ITERACOES = 100000     
 PRESSAO_MEDIDA = 10.0  
 SOLVER_PRESSURE_STEPS = 500
 
-FATOR_RELAXACAO = 0.01
+FATOR_RELAXACAO = 0.2
 
-# Caminhos dos arquivos
+
 MESH_PATH = "./data/example/Patient_lv.xml"
 FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload/teste_6"
+OUTPUT_DIR = "results_unload/teste_7"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 
-# Marcações da malha
+
 ldrb_markers = {"base": 10, "lv": 20, "epi": 40, "rv": 30}
 
 
-# --- 2. INICIALIZAÇÃO DO ALGORITMO ---
+
 print("Inicializando o processo para encontrar a geometria sem carga...")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -57,33 +56,30 @@ except RuntimeError:
     exit()
 
 disp_file = df.File(ITERATIVE_DISP_FILE)
-# Listas para armazenar os resultados de cada iteração para plotagem
+
 volumes_por_iteracao = []
 residuos_por_iteracao = []
-
-
-# --- 3. LOOP ITERATIVO DE PONTO FIXO ---
 for i in range(MAX_ITERACOES):
     print(f"\n--- Iteração {i+1}/{MAX_ITERACOES} ---")
+
+    df.File(os.path.join(OUTPUT_DIR, f"debug/mesh_input_iter_{i+1}.pvd")) << mesh_atual
 
     try:
         coords_descarregada_atual = np.copy(mesh_atual.coordinates())
 
-        # PASSO 1: SIMULAÇÃO DIRETA
         print("Executando simulação direta (chamando o solver)...")
         u_calculado = solve_inflation_lv(
             mesh_atual, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
         )
         u_calculado.rename("u", f"displacement_iter_{i+1}")
         disp_file << u_calculado
-        u_array = u_calculado.vector().get_local().reshape((-1, 3))
+        # u_array = u_calculado.vector().get_local().reshape((-1, 3))
+        u_array = u_calculado.compute_vertex_values(mesh_atual)
 
-        # PASSO 2: CÁLCULO DO RESÍDUO
         coords_deformada_calculada = coords_descarregada_atual + u_array
         residuo_vetorial = coords_medida - coords_deformada_calculada
         max_residuo = np.max(np.linalg.norm(residuo_vetorial, axis=1))
         
-        # Armazena os resultados para plotagem
         residuos_por_iteracao.append(max_residuo)
         volume_calculado = compute_cavity_volume(mesh_atual, ffun, ldrb_markers, u_calculado)
         volumes_por_iteracao.append(volume_calculado)
@@ -95,7 +91,6 @@ for i in range(MAX_ITERACOES):
             print("\nConvergência atingida com sucesso!")
             break
 
-        # PASSO 3: ATUALIZAÇÃO DA GEOMETRIA COM SUB-RELAXAÇÃO
         print("Atualizando a estimativa da geometria descarregada com sub-relaxação...")
         target_coords_descarregada = coords_medida - u_array
         correcao = target_coords_descarregada - coords_descarregada_atual
@@ -111,15 +106,14 @@ for i in range(MAX_ITERACOES):
 else: 
     print(f"\nAVISO: Número máximo de {MAX_ITERACOES} iterações atingido sem convergência total.")
 
-# --- 4. SALVAR RESULTADO FINAL ---
 print(f"\nSalvando a geometria descarregada final em '{UNLOADED_MESH_FILE}'...")
 with df.XDMFFile(UNLOADED_MESH_FILE) as outfile:
     outfile.write(mesh_atual)
 print("Processo concluído.")
 
-# --- 5. VISUALIZAÇÃO DOS RESULTADOS ---
+# --- VISUALIZAÇÃO DOS RESULTADOS ---
 if volumes_por_iteracao and residuos_por_iteracao:
-    num_iteracoes = range(1, len(volumes_por_iteracao) + 1)
+    num_iteracoes = rangse(1, len(volumes_por_iteracao) + 1)
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
 

@@ -31,12 +31,12 @@ PRESSAO_MEDIDA = 10.0
 SOLVER_PRESSURE_STEPS = 500
 
 
-FATOR_RELAXACAO = 0.2
+# FATOR_RELAXACAO = 0.2
 
 
 MESH_PATH = "./data/example/Patient_lv.xml"
 FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload/teste_7"
+OUTPUT_DIR = "results_unload/teste_8"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 
@@ -49,54 +49,73 @@ print("Inicializando o processo para encontrar a geometria sem carga...")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 try:
-    mesh_atual = df.Mesh(MESH_PATH)
-    ffun = df.MeshFunction("size_t", mesh_atual, FFUN_PATH)
-    coords_medida = np.copy(mesh_atual.coordinates()) 
+    mesh = df.Mesh(MESH_PATH)
+    ffun = df.MeshFunction("size_t", mesh, FFUN_PATH)
+    coords_medida = np.copy(mesh.coordinates()) 
 except RuntimeError:
     print(f"\nERRO: Malha '{MESH_PATH}' ou fronteiras '{FFUN_PATH}' não encontradas.")
     exit()
 
 disp_file = df.File(ITERATIVE_DISP_FILE)
 
+xm = mesh.coordinates()[:].copy()
+X = xm.copy()
+x = xm.copy()
+
 volumes_por_iteracao = []
 residuos_por_iteracao = []
 for i in range(MAX_ITERACOES):
     print(f"\n--- Iteração {i+1}/{MAX_ITERACOES} ---")
 
-    df.File(os.path.join(OUTPUT_DIR, f"debug/mesh_input_iter_{i+1}.pvd")) << mesh_atual
+    # df.File(os.path.join(OUTPUT_DIR, f"debug/mesh_input_iter_{i+1}.pvd")) << X
 
     try:
-        coords_descarregada_atual = np.copy(mesh_atual.coordinates())
+        # coords_descarregada_atual = np.copy(mesh_atual.coordinates())
+        mesh.coordinates()[:] = X.copy()
+        mesh.bounding_box_tree().build(mesh)
 
         print("Executando simulação direta (chamando o solver)...")
         u_calculado = solve_inflation_lv(
-            mesh_atual, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
+            mesh, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
         )
         u_calculado.rename("u", f"displacement_iter_{i+1}")
         disp_file << u_calculado
         # u_array = u_calculado.vector().get_local().reshape((-1, 3))
-        u_array = u_calculado.compute_vertex_values(mesh_atual)
+        # u_array = u_calculado.compute_vertex_values(mesh_atual)
+        coords = mesh.coordinates()
+        u_array = np.array([u_calculado(xx) for xx in coords])
 
-        coords_deformada_calculada = coords_descarregada_atual + u_array
-        residuo_vetorial = coords_medida - coords_deformada_calculada
-        max_residuo = np.max(np.linalg.norm(residuo_vetorial, axis=1))
+        x = mesh.coordinates()[:].copy()
+        x += u_at_vertices
+
+        lres = []
+        for i in range(np.shape(xm)[0]):
+            lres.append(np.linalg.norm(xm[i,:]-x[i,:], 2))
+
+        # coords_deformada_calculada = coords_descarregada_atual + u_array
+        # residuo_vetorial = coords_medida - coords_deformada_calculada
+        # max_residuo = np.max(np.linalg.norm(residuo_vetorial, axis=1))
+
+        res = max(lres)
         
-        residuos_por_iteracao.append(max_residuo)
-        volume_calculado = compute_cavity_volume(mesh_atual, ffun, ldrb_markers, u_calculado)
+        residuos_por_iteracao.append(res)
+        volume_calculado = compute_cavity_volume(mesh, ffun, ldrb_markers, u_calculado)
         volumes_por_iteracao.append(volume_calculado)
         
-        print(f"Resíduo máximo nesta iteração: {max_residuo:.6f}")
+        print(f"Resíduo máximo nesta iteração: {res:.6f}")
         print(f"Volume da cavidade calculado: {volume_calculado:.2f}")
 
-        if max_residuo < TOLERANCIA:
+        if res < TOLERANCIA:
             print("\nConvergência atingida com sucesso!")
             break
 
         print("Atualizando a estimativa da geometria descarregada com sub-relaxação...")
-        target_coords_descarregada = coords_medida - u_array
-        correcao = target_coords_descarregada - coords_descarregada_atual
-        coords_descarregada_proxima = coords_descarregada_atual + FATOR_RELAXACAO * correcao
-        mesh_atual.coordinates()[:] = coords_descarregada_proxima
+        # target_coords_descarregada = coords_medida - u_array
+        # correcao = target_coords_descarregada - coords_descarregada_atual
+        # coords_descarregada_proxima = coords_descarregada_atual + FATOR_RELAXACAO * correcao
+        # mesh_atual.coordinates()[:] = coords_descarregada_proxima
+
+        X = xm.copy() - u_array
 
     except RuntimeError as e:
         print(f"\nERRO na simulação. O solver não convergiu na iteração {i+1}.")
@@ -109,7 +128,7 @@ else:
 
 print(f"\nSalvando a geometria descarregada final em '{UNLOADED_MESH_FILE}'...")
 with df.XDMFFile(UNLOADED_MESH_FILE) as outfile:
-    outfile.write(mesh_atual)
+    outfile.write(mesh)
 print("Processo concluído.")
 
 # --- VISUALIZAÇÃO DOS RESULTADOS ---

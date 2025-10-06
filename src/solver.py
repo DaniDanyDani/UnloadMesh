@@ -88,5 +88,5 @@ def solve_inflation_lv(mesh, ffun, ldrb_markers, pressure_value, num_steps=1):
         solve(R == 0, u, bcs, solver_parameters=solver_params)
           
     # Retorna o campo de deslocamento final
-    return u
+    return u, [fiber, sheet, sheet_normal]
 

@@ -25,10 +25,10 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
     ds = df.Measure('ds', domain=mesh, subdomain_data=mf)
     return df.assemble(vol_form*ds(numbering["lv"]))
 
-TOLERANCIA = 1e-5      
-MAX_ITERACOES = 100000     
-PRESSAO_MEDIDA = 10.0  
-SOLVER_PRESSURE_STEPS = 500
+TOLERANCIA = 1e-3      
+MAX_ITERACOES = 50     
+PRESSAO_MEDIDA = 1.0  
+SOLVER_PRESSURE_STEPS = 10
 
 
 # FATOR_RELAXACAO = 0.2
@@ -36,7 +36,7 @@ SOLVER_PRESSURE_STEPS = 500
 
 MESH_PATH = "./data/example/Patient_lv.xml"
 FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload/teste_8"
+OUTPUT_DIR = "results_unload/teste_10"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 
@@ -62,6 +62,8 @@ xm = mesh.coordinates()[:].copy()
 X = xm.copy()
 x = xm.copy()
 
+fiber, sheet, sheet_normal = None, None, None
+
 volumes_por_iteracao = []
 residuos_por_iteracao = []
 for i in range(MAX_ITERACOES):
@@ -75,7 +77,7 @@ for i in range(MAX_ITERACOES):
         mesh.bounding_box_tree().build(mesh)
 
         print("Executando simulação direta (chamando o solver)...")
-        u_calculado = solve_inflation_lv(
+        u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lv(
             mesh, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
         )
         u_calculado.rename("u", f"displacement_iter_{i+1}")
@@ -86,7 +88,7 @@ for i in range(MAX_ITERACOES):
         u_array = np.array([u_calculado(xx) for xx in coords])
 
         x = mesh.coordinates()[:].copy()
-        x += u_at_vertices
+        x += u_array
 
         lres = []
         for i in range(np.shape(xm)[0]):
@@ -129,11 +131,17 @@ else:
 print(f"\nSalvando a geometria descarregada final em '{UNLOADED_MESH_FILE}'...")
 with df.XDMFFile(UNLOADED_MESH_FILE) as outfile:
     outfile.write(mesh)
+    fiber.rename("f", "f")
+    sheet.rename("s", "s")
+    sheet_normal.rename("n", "n")
+    outfile.write(fiber, 0)
+    outfile.write(sheet, 0)
+    outfile.write(sheet_normal, 0)
 print("Processo concluído.")
 
 # --- VISUALIZAÇÃO DOS RESULTADOS ---
 if volumes_por_iteracao and residuos_por_iteracao:
-    num_iteracoes = rangse(1, len(volumes_por_iteracao) + 1)
+    num_iteracoes = range(1, len(volumes_por_iteracao) + 1)
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
 
@@ -164,3 +172,18 @@ if volumes_por_iteracao and residuos_por_iteracao:
 
     plt.show()
 
+    u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lv(
+        mesh, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
+    )
+
+    with df.XDMFFile(os.path.join(OUTPUT_DIR, f"debug/mesh_input_iter.xdmf")) as outfile:
+        outfile.write(mesh)
+        u_calculado.rename("displacement", "displacement")
+        fiber.rename("f", "f")
+        sheet.rename("s", "s")
+        sheet_normal.rename("n", "n")
+        outfile.write(fiber, 0)
+        outfile.write(sheet, 0)
+        outfile.write(sheet_normal, 0)
+        outfile.write(u_calculado, 0)
+    print("Processo concluído.")

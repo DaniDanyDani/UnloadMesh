@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
-
 import dolfin as df
 import numpy as np
 import os
 import matplotlib.pyplot as plt
 from src.solver import solve_inflation_lv
 
-# --- FUNÇÃO PARA CÁLCULO DE VOLUME ---
 def compute_cavity_volume(mesh, mf, numbering, u=None):
     """
     Calcula o volume da cavidade usando uma integral de superfície no endocárdio.
@@ -27,80 +24,79 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
 
 TOLERANCIA = 1e-3      
 MAX_ITERACOES = 50     
-PRESSAO_MEDIDA = 1.0  
-SOLVER_PRESSURE_STEPS = 10
+PRESSAO_MEDIDA = 1.8  
+SOLVER_PRESSURE_STEPS = 100
 
-
-# FATOR_RELAXACAO = 0.2
-
-
-MESH_PATH = "./data/example/Patient_lv.xml"
-FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload/teste_10"
+# --- Inputs
+MESH_PATH = "./data/ex0_lv/Patient_lv.xml"
+FFUN_PATH = "./data/ex0_lv/Patient_lv_facet_region.xml"
+OUTPUT_DIR = "results_unload/ex0_lv"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 
-
+# --- Markers para ldrb
 ldrb_markers = {"base": 10, "lv": 20, "epi": 40, "rv": 30}
-
-
 
 print("Inicializando o processo para encontrar a geometria sem carga...")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# --- Carregando malha inicial
 try:
     mesh = df.Mesh(MESH_PATH)
     ffun = df.MeshFunction("size_t", mesh, FFUN_PATH)
-    coords_medida = np.copy(mesh.coordinates()) 
 except RuntimeError:
     print(f"\nERRO: Malha '{MESH_PATH}' ou fronteiras '{FFUN_PATH}' não encontradas.")
     exit()
 
+# --- Iniciando salvamento iterativo das malhas
 disp_file = df.File(ITERATIVE_DISP_FILE)
 
+
+# --- iniciando malhas iterativas
 xm = mesh.coordinates()[:].copy()
 X = xm.copy()
 x = xm.copy()
 
 fiber, sheet, sheet_normal = None, None, None
 
+
+# --- Iniciando método do ponto fixo
 volumes_por_iteracao = []
 residuos_por_iteracao = []
 for i in range(MAX_ITERACOES):
     print(f"\n--- Iteração {i+1}/{MAX_ITERACOES} ---")
 
-    # df.File(os.path.join(OUTPUT_DIR, f"debug/mesh_input_iter_{i+1}.pvd")) << X
-
     try:
-        # coords_descarregada_atual = np.copy(mesh_atual.coordinates())
+        # --- Atualizar a malha antes de iniciar simulação
         mesh.coordinates()[:] = X.copy()
         mesh.bounding_box_tree().build(mesh)
 
+        # --- Iniciando simulação, chamando solver
         print("Executando simulação direta (chamando o solver)...")
         u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lv(
             mesh, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
         )
+
+        # --- renomeando o campo u para o salvamento iterativo
         u_calculado.rename("u", f"displacement_iter_{i+1}")
         disp_file << u_calculado
-        # u_array = u_calculado.vector().get_local().reshape((-1, 3))
-        # u_array = u_calculado.compute_vertex_values(mesh_atual)
+        
+        # --- transformando o campo de deslocamento em um array
         coords = mesh.coordinates()
         u_array = np.array([u_calculado(xx) for xx in coords])
 
+        # --- Adquirindo malha expandida
         x = mesh.coordinates()[:].copy()
         x += u_array
 
+        # --- Cálculo do resíduo e salvando em uma lista para plotar depois
         lres = []
         for i in range(np.shape(xm)[0]):
             lres.append(np.linalg.norm(xm[i,:]-x[i,:], 2))
-
-        # coords_deformada_calculada = coords_descarregada_atual + u_array
-        # residuo_vetorial = coords_medida - coords_deformada_calculada
-        # max_residuo = np.max(np.linalg.norm(residuo_vetorial, axis=1))
-
         res = max(lres)
-        
         residuos_por_iteracao.append(res)
+
+        # --- Calculando volume e salvando em uma lista para plotar depois
         volume_calculado = compute_cavity_volume(mesh, ffun, ldrb_markers, u_calculado)
         volumes_por_iteracao.append(volume_calculado)
         
@@ -111,18 +107,13 @@ for i in range(MAX_ITERACOES):
             print("\nConvergência atingida com sucesso!")
             break
 
+        # --- Atualizando geometria para a próxima iteração
         print("Atualizando a estimativa da geometria descarregada com sub-relaxação...")
-        # target_coords_descarregada = coords_medida - u_array
-        # correcao = target_coords_descarregada - coords_descarregada_atual
-        # coords_descarregada_proxima = coords_descarregada_atual + FATOR_RELAXACAO * correcao
-        # mesh_atual.coordinates()[:] = coords_descarregada_proxima
-
         X = xm.copy() - u_array
 
     except RuntimeError as e:
         print(f"\nERRO na simulação. O solver não convergiu na iteração {i+1}.")
         print("Detalhes do erro do FEniCS:", e)
-        # mesh_atual.coordinates()[:] = coords_medida # remover
         break
 
 else: 
@@ -131,12 +122,14 @@ else:
 print(f"\nSalvando a geometria descarregada final em '{UNLOADED_MESH_FILE}'...")
 with df.XDMFFile(UNLOADED_MESH_FILE) as outfile:
     outfile.write(mesh)
+    u_calculado.rename("displacement", "displacement")
     fiber.rename("f", "f")
     sheet.rename("s", "s")
     sheet_normal.rename("n", "n")
     outfile.write(fiber, 0)
     outfile.write(sheet, 0)
     outfile.write(sheet_normal, 0)
+    outfile.write(u_calculado, 0)
 print("Processo concluído.")
 
 # --- VISUALIZAÇÃO DOS RESULTADOS ---
@@ -171,19 +164,3 @@ if volumes_por_iteracao and residuos_por_iteracao:
     ax2.legend(lines + lines2, labels + labels2, loc='best')
 
     plt.show()
-
-    u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lv(
-        mesh, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
-    )
-
-    with df.XDMFFile(os.path.join(OUTPUT_DIR, f"debug/mesh_input_iter.xdmf")) as outfile:
-        outfile.write(mesh)
-        u_calculado.rename("displacement", "displacement")
-        fiber.rename("f", "f")
-        sheet.rename("s", "s")
-        sheet_normal.rename("n", "n")
-        outfile.write(fiber, 0)
-        outfile.write(sheet, 0)
-        outfile.write(sheet_normal, 0)
-        outfile.write(u_calculado, 0)
-    print("Processo concluído.")

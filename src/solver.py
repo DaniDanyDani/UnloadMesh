@@ -60,8 +60,15 @@ def solve_inflation_lv(mesh, ffun, ldrb_markers, pressure_value, num_steps=1):
     N = FacetNormal(mesh)
     Gext = p_endo * inner(v, det(F) * inv(F) * N) * ds(ldrb_markers["lv"])
     R = inner(P, grad(v)) * dx + Gext
+
+    newton_solver_params = {"relative_tolerance": 1e-5, 
+                            "maximum_iterations": 50, 
+                            "linear_solver": 'mumps', 
+                            "absolute_tolerance": 1e-5,
+                            "relaxation_parameter": 0.7}
     
-    solver_params = {"newton_solver": {"maximum_iterations": 500}}
+    solver_params = {"nonlinear_solver": 'newton',
+                     "newton_solver": newton_solver_params}
     
     # --- APLICAÇÃO DA CARGA INCREMENTAL ---
     print(f"  Aplicando pressão {pressure_value:.2f} em {num_steps} passo(s)...")
@@ -77,8 +84,8 @@ def solve_inflation_lv(mesh, ffun, ldrb_markers, pressure_value, num_steps=1):
         print(f"    Passo de carga {i+1}/{num_steps}, Pressão = {p:.2f}")
         p_endo.assign(p)
         
+        # solve(R == 0, u, bcs, solver_parameters=solver_params)
         solve(R == 0, u, bcs, solver_parameters=solver_params)
-        # solve(R == 0, u, bcs)
           
     # Retorna o campo de deslocamento final
     return u

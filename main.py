@@ -26,17 +26,17 @@ def compute_cavity_volume(mesh, mf, numbering, u=None):
     return df.assemble(vol_form*ds(numbering["lv"]))
 
 # --- 1. PARÂMETROS GERAIS ---
-TOLERANCIA = 1e-4      
-MAX_ITERACOES = 1000     
+TOLERANCIA = 1e-5      
+MAX_ITERACOES = 100000     
 PRESSAO_MEDIDA = 10.0  
-SOLVER_PRESSURE_STEPS = 1000
+SOLVER_PRESSURE_STEPS = 500
 
-FATOR_RELAXACAO = 0.5
+FATOR_RELAXACAO = 0.01
 
 # Caminhos dos arquivos
 MESH_PATH = "./data/example/Patient_lv.xml"
 FFUN_PATH = "./data/example/Patient_lv_facet_region.xml"
-OUTPUT_DIR = "results_unload/teste_4"
+OUTPUT_DIR = "results_unload/teste_6"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 
@@ -105,7 +105,7 @@ for i in range(MAX_ITERACOES):
     except RuntimeError as e:
         print(f"\nERRO na simulação. O solver não convergiu na iteração {i+1}.")
         print("Detalhes do erro do FEniCS:", e)
-        mesh_atual.coordinates()[:] = coords_medida
+        # mesh_atual.coordinates()[:] = coords_medida # remover
         break
 
 else: 

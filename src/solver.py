@@ -67,7 +67,6 @@ def solve_inflation_lv(mesh, ffun, ldrb_markers, pressure_value = 1.8, num_steps
     
     # Gera os valores de pressão para cada passo
     # Ex: para 10 kPa em 5 passos -> [2.0, 4.0, 6.0, 8.0, 10.0]
-    # pressures = np.linspace(pressure_value / num_steps, pressure_value, num=num_steps)
     pressures = np.linspace(0, pressure_value, num=num_steps)
 
     # O campo 'u' começa em zero e é atualizado a cada passo, usando a solução anterior
@@ -124,10 +123,13 @@ def solve_inflation_lvrv(mesh, ffun, ldrb_markers, pressure_value = [1.8, 1], nu
     P = diff(psi, F)
     
     # A pressão agora é uma constante que será atualizada dentro do loop
-    p_endo = Constant(0.0)
+    p_endo_lv = Constant(0.0)
+    p_endo_rv = Constant(0.0)
     
     N = FacetNormal(mesh)
-    Gext = p_endo * inner(v, det(F) * inv(F) * N) * ds(ldrb_markers["lv"])
+    Gext_lv = p_endo_lv * inner(v, det(F) * inv(F) * N) * ds(ldrb_markers["lv"])
+    Gext_rv = p_endo_rv * inner(v, det(F) * inv(F) * N) * ds(ldrb_markers["rv"])
+    Gext    = Gext_lv + Gext_rv 
     R = inner(P, grad(v)) * dx + Gext
 
     newton_solver_params = {"relative_tolerance": 1e-5, 
@@ -140,21 +142,22 @@ def solve_inflation_lvrv(mesh, ffun, ldrb_markers, pressure_value = [1.8, 1], nu
                      "newton_solver": newton_solver_params}
     
     # --- APLICAÇÃO DA CARGA INCREMENTAL ---
-    print(f"  Aplicando pressão {pressure_value:.2f} em {num_steps} passo(s)...")
+    print(f"  Aplicando pressão do lv {pressure_value[0]:.2f} em {num_steps} passo(s)...")
+    print(f"  Aplicando pressão do rv {pressure_value[1]:.2f} em {num_steps} passo(s)...")
     
     # Gera os valores de pressão para cada passo
     # Ex: para 10 kPa em 5 passos -> [2.0, 4.0, 6.0, 8.0, 10.0]
-    # pressures = np.linspace(pressure_value / num_steps, pressure_value, num=num_steps)
-    pressures = np.linspace(0, pressure_value, num=num_steps)
+    pressures_lv = np.linspace(0, pressure_value[0], num=num_steps)
+    pressures_rv = np.linspace(0, pressure_value[1], num=num_steps)
 
     # O campo 'u' começa em zero e é atualizado a cada passo, usando a solução anterior
     # como chute inicial para a próxima, o que melhora a convergência.
-    for i, p in enumerate(pressures):
-        print(f"    Passo de carga {i+1}/{num_steps}, Pressão = {p:.2f}")
-        p_endo.assign(p)
+    for i in range(num_steps):
+        print(f"    Passo de carga {i+1}, Pressão lv = {pressures_lv[i]:.2f}, Pressão rv = {pressures_rv[i]:.2f}")
+        p_endo_lv.assign(pressures_lv[i])
+        p_endo_rv.assign(pressures_rv[i])
         
         solve(R == 0, u, bcs, solver_parameters=solver_params)
           
     # Retorna o campo de deslocamento final
     return u, [fiber, sheet, sheet_normal]
-

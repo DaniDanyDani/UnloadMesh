@@ -3,36 +3,20 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from src.solver import solve_inflation_lvrv
-
-def compute_cavity_volume(mesh, mf, numbering, u=None):
-    """
-    Calcula o volume da cavidade usando uma integral de superfície no endocárdio.
-    """
-    X = df.SpatialCoordinate(mesh) 
-    N = df.FacetNormal(mesh)
-
-    if u is not None:
-        I = df.Identity(3)
-        F = I + df.grad(u)
-        J = df.det(F)
-        vol_form = (-1.0/3.0) * df.dot(X + u, J * df.inv(F).T * N)
-    else:
-        vol_form = (-1.0/3.0) * df.dot(X, N)
-
-    ds = df.Measure('ds', domain=mesh, subdomain_data=mf)
-    return df.assemble(vol_form*ds(numbering["lv"]))
+from src.utils import compute_cavity_volume, plot_convergence_history
 
 TOLERANCIA = 1e-3      
-MAX_ITERACOES = 50     
+MAX_ITERACOES = 1000     
 PRESSAO_MEDIDA = [1.8,1.0]  
-SOLVER_PRESSURE_STEPS = 100
+SOLVER_PRESSURE_STEPS = 500
 
 # --- Inputs
 MESH_PATH = "./data/ex1_lvrv/Patient_lvrv.xml"
 FFUN_PATH = "./data/ex1_lvrv/Patient_lvrv_facet_region.xml"
-OUTPUT_DIR = "results_unload/ex0_lvrv"
+OUTPUT_DIR = "results_unload/ex1_lvrv"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
+CONVERGENCE_GRAPH = os.path.join(OUTPUT_DIR, "convergence_graph.png")
 
 # --- Markers para ldrb
 ldrb_markers = {"base": 10, "lv": 20, "epi": 40, "rv": 30}
@@ -73,7 +57,7 @@ for i in range(MAX_ITERACOES):
 
         # --- Iniciando simulação, chamando solver
         print("Executando simulação direta (chamando o solver)...")
-        u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lv(
+        u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lvrv(
             mesh, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
         )
 
@@ -97,11 +81,11 @@ for i in range(MAX_ITERACOES):
         residuos_por_iteracao.append(res)
 
         # --- Calculando volume e salvando em uma lista para plotar depois
-        volume_calculado = compute_cavity_volume(mesh, ffun, ldrb_markers, u_calculado)
-        volumes_por_iteracao.append(volume_calculado)
+        volume_calculado_lv = compute_cavity_volume(mesh, ffun, ldrb_markers, "lv", u_calculado)
+        volume_calculado_rv = compute_cavity_volume(mesh, ffun, ldrb_markers, "rv", u_calculado)
+        volumes_por_iteracao.append([volume_calculado_lv, volume_calculado_rv])
         
         print(f"Resíduo máximo nesta iteração: {res:.6f}")
-        print(f"Volume da cavidade calculado: {volume_calculado:.2f}")
 
         if res < TOLERANCIA:
             print("\nConvergência atingida com sucesso!")
@@ -134,33 +118,4 @@ print("Processo concluído.")
 
 # --- VISUALIZAÇÃO DOS RESULTADOS ---
 if volumes_por_iteracao and residuos_por_iteracao:
-    num_iteracoes = range(1, len(volumes_por_iteracao) + 1)
-
-    fig, ax1 = plt.subplots(figsize=(10, 6))
-
-    # Plot do Resíduo (eixo Y esquerdo)
-    color = 'tab:blue'
-    ax1.set_xlabel('Iteração do Ponto Fixo')
-    ax1.set_ylabel('Resíduo Máximo (Erro)', color=color)
-    ax1.plot(num_iteracoes, residuos_por_iteracao, marker='o', linestyle='--', color=color, label='Resíduo Máximo')
-    ax1.tick_params(axis='y', labelcolor=color)
-    ax1.set_yscale('log') # Escala logarítmica é ideal para ver a convergência do erro
-    
-    # Cria um segundo eixo Y que compartilha o mesmo eixo X
-    ax2 = ax1.twinx()  
-    color = 'tab:red'
-    ax2.set_ylabel('Volume da Cavidade', color=color)
-    ax2.plot(num_iteracoes, volumes_por_iteracao, marker='s', linestyle=':', color=color, label='Volume Calculado')
-    ax2.tick_params(axis='y', labelcolor=color)
-
-    fig.tight_layout()
-    plt.title('Convergência do Resíduo e do Volume por Iteração')
-    plt.grid(True)
-    plt.xticks(num_iteracoes)
-    
-    # Adiciona legendas de ambos os plots
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax2.legend(lines + lines2, labels + labels2, loc='best')
-
-    plt.show()
+    plot_convergence_history(volumes_por_iteracao, residuos_por_iteracao, CONVERGENCE_GRAPH)

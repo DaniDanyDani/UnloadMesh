@@ -2,18 +2,18 @@ import dolfin as df
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-from src.solver import solve_inflation_lvrv
+from src.solver import solve_inflation_lv, solve_inflation_rv
 from src.utils import compute_cavity_volume, plot_convergence_history
 
 TOLERANCIA = 1e-3      
-MAX_ITERACOES = 50     
+MAX_ITERACOES = 100     
 PRESSAO_MEDIDA = [1.8,0.8]  
-SOLVER_PRESSURE_STEPS = 50
+SOLVER_PRESSURE_STEPS = [30, 20]
 
 # --- Inputs
-MESH_PATH = "./data/ex1_lvrv_7/Patient_lvrv.xml"
-FFUN_PATH = "./data/ex1_lvrv_7/Patient_lvrv_facet_region.xml"
-OUTPUT_DIR = "results_unload/ex1_lvrv_teste1"
+MESH_PATH = "./data/ex1_lvrv/Patient_lvrv.xml"
+FFUN_PATH = "./data/ex1_lvrv/Patient_lvrv_facet_region.xml"
+OUTPUT_DIR = "results_unload/ex1_lvrv_teste_teste1"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 CONVERGENCE_GRAPH = os.path.join(OUTPUT_DIR, "convergence_graph.png")
@@ -54,12 +54,25 @@ for i in range(MAX_ITERACOES):
         # --- Atualizar a malha antes de iniciar simulação
         mesh.coordinates()[:] = X.copy()
         mesh.bounding_box_tree().build(mesh)
-        # cells_colision = mesh.compute_entity_collisions(mesh)
 
         # --- Iniciando simulação, chamando solver
-        print("Executando simulação direta (chamando o solver)...")
-        u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lvrv(
-            mesh, ffun, ldrb_markers, PRESSAO_MEDIDA, SOLVER_PRESSURE_STEPS 
+        print("Executando simulação direta para lv (chamando o solver)...")
+        u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lv(
+            mesh, ffun, ldrb_markers, PRESSAO_MEDIDA[0], SOLVER_PRESSURE_STEPS[0] 
+        )
+
+        coords = mesh.coordinates()
+        u_array = np.array([u_calculado(xx) for xx in coords])
+
+        X_int = xm.copy() + (u_array)
+
+        mesh.coordinates()[:] = X_int.copy()
+        mesh.bounding_box_tree().build(mesh)
+
+        # --- Iniciando simulação, chamando solver
+        print("Executando simulação direta rv (chamando o solver)...")
+        u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_rv(
+            mesh, ffun, ldrb_markers, PRESSAO_MEDIDA[1], SOLVER_PRESSURE_STEPS[1] 
         )
 
         # --- renomeando o campo u para o salvamento iterativo
@@ -86,7 +99,7 @@ for i in range(MAX_ITERACOES):
         volume_calculado_rv = compute_cavity_volume(mesh, ffun, ldrb_markers, "rv", u_calculado)
         volumes_por_iteracao.append([volume_calculado_lv, volume_calculado_rv])
         
-        print(f"Resíduo máximo nesta iteração: {res:.6f}")
+        print(f"\n\nResíduo máximo nesta iteração: {res:.6f}\n\n")
 
         if res < TOLERANCIA:
             print("\nConvergência atingida com sucesso!")
@@ -95,6 +108,7 @@ for i in range(MAX_ITERACOES):
         # --- Atualizando geometria para a próxima iteração
         print("Atualizando a estimativa da geometria descarregada com sub-relaxação...")
         X = xm.copy() - (u_array)
+
 
     except RuntimeError as e:
         print(f"\nERRO na simulação. O solver não convergiu na iteração {i+1}.")

@@ -11,9 +11,9 @@ PRESSAO_MEDIDA = [1.8,0.8]
 SOLVER_PRESSURE_STEPS = 50
 
 # --- Inputs
-MESH_PATH = "./data/ex1_lvrv_7/Patient_lvrv.xml"
-FFUN_PATH = "./data/ex1_lvrv_7/Patient_lvrv_facet_region.xml"
-OUTPUT_DIR = "results_unload/ex1_lvrv_teste1"
+MESH_PATH = "./data/Patient_2_ed/Patient_2_ed.xml"
+FFUN_PATH = "./data/Patient_2_ed/Patient_2_ed_facet_region.xml"
+OUTPUT_DIR = "results_unload/Patient_2_ed"
 UNLOADED_MESH_FILE = os.path.join(OUTPUT_DIR, "unloaded_mesh.xdmf")
 ITERATIVE_DISP_FILE = os.path.join(OUTPUT_DIR, "deslocamento_iterativo.pvd")
 CONVERGENCE_GRAPH = os.path.join(OUTPUT_DIR, "convergence_graph.png")

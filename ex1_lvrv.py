@@ -62,6 +62,7 @@ for i in range(MAX_ITERACOES):
     try:
         mesh.coordinates()[:] = X.copy()
         mesh.bounding_box_tree().build(mesh)
+        # cells_colision = mesh.compute_entity_collisions(mesh)
 
         print("Executando simulação direta (chamando o solver)...")
         u_calculado, [fiber, sheet, sheet_normal] = solve_inflation_lvrv(
@@ -140,3 +141,4 @@ print("Processo concluído.")
 
 if volumes_por_iteracao and residuos_por_iteracao:
     plot_convergence_history(volumes_por_iteracao, residuos_por_iteracao, CONVERGENCE_GRAPH)
+

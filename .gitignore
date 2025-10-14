@@ -8,6 +8,7 @@ data/*
 # ... exceto a subpasta /example
 !data/ex0_lv
 !data/ex1_lvrv
+!data/ex1_lvrv_ed
 
 # C extensions
 *.so
